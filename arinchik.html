@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>WalletConnect CDN</title>
+    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+<div>
+    <p id="account">wallet</p>
+    <p id="data">wallet</p>
+    <p id="chainId">wallet</p>
+
+    <div class="wrapper_duck">
+        <div class="container">
+            <div class="duck">
+                <div class="duck__beak--top"></div>
+                <div class="duck__beak--bottom"></div>
+                <div class="duck__poof"></div>
+                <div class="duck__head"></div>
+                <div class="duck__eye"></div>
+                <div class="duck__iris"></div>
+                <div class="duck__body"></div>
+                <div class="duck__wing"></div>
+            </div>
+        </div>
+        <div class="sky"></div>
+        <div class="ocean">
+            <div class="wave"></div>
+            <div class="water"></div>
+        </div>
+    </div>
+
+    <img id="trust-wallet-connect" src="" hidden>
+    <button id="connect" onclick="connect()">TW</button>
+
+    <button class="enableEthereumButton">MM</button>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.5.2/ethers.umd.min.js" integrity="sha512-PtOcu3WZTldHT+VjAJdWV5ss+iGebEgc1h5olJuxUNPvKuC0VOZsk1UhNgQYi5oIyrNHhdIOw8WQMdZwBv1MyQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <script>
+        const ethereumButton = document.querySelector('.enableEthereumButton');
+
+        ethereumButton.addEventListener('click', () => {
+            try{
+                ethereum.request({ method: 'eth_requestAccounts' });
+            }catch {
+                console.log('1122')
+            }
+        });
+    </script>
+    <div id="assets" hidden></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/@walletconnect/browser@1.0.0-beta.46/lib/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@walletconnect/qrcode-modal@1.0.0-beta.46/lib/index.min.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="trust-wallet-connect-img.js"></script>
+
+<script>
+    window.addEventListener('DOMContentLoaded', (event) => {
+        var WalletConnect = window.WalletConnect.default;
+        var WalletConnectQRCodeModal = window.WalletConnectQRCodeModal.default;
+
+        // Setup the image in base64 format (declared intrust-wallet-connect-img.js)
+        // this allows to simply open the index.html file in the browser (without
+        // the need of a server)
+        document.getElementById('trust-wallet-connect').src = trustWalletConnectImg;
+
+        // This is an Ethereum API for retriving data from the blockchain using
+        //  the axios package.
+        var api = axios.create({
+            baseURL: 'https://ethereum-api.xyz',
+            timeout: 30000, // 30 secs
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+
+        // Get accounts
+        var getAccountAssets = function (address, chainId) {
+            document.getElementById('assets').innerHTML = 'Loading assets...';
+            var response = api.get(
+                `/account-assets?address=${address}&chainId=${chainId}`
+            ).then(response => {
+                assetList(response.data.result);
+            });
+        }
+
+        // Create the list of assets
+        var assetList = function (assets) {
+            var result = '<table><tr><th>ASSET</th><th>BALANCE</th>';
+            for (var a of assets) {
+                result = result + '<tr><td>' + a.symbol + '</td><td>' + a.balance + '</td>';
+            }
+            result = result + '</table>';
+            document.getElementById('assets').innerHTML = result;
+        }
+
+        // Display all
+        var displayData = function () {
+            document.getElementById('connect').firstChild.data = 'Disconnect';
+            document.getElementById('data').hidden = false;
+            document.getElementById('assets').hidden = false;
+            document.getElementById('account').innerHTML = walletConnector.accounts[0];
+            document.getElementById('chainId').innerHTML = walletConnector.chainId;
+            getAccountAssets(walletConnector.accounts[0], walletConnector.chainId);
+        }
+
+
+        // Get an instance of the WalletConnect connector
+        var walletConnector = new WalletConnect({
+            bridge: 'https://bridge.walletconnect.org' // Required
+        });
+
+        // Display data if connected
+        if (walletConnector.connected) {
+            displayData();
+        }
+
+        // When the connect/disconnect button is clicked
+        connect = function () {
+            // Check if connection is already established
+            if (!walletConnector.connected) {
+                // create new session
+                walletConnector.createSession().then(() => {
+                    // get uri for QR Code modal
+                    var uri = walletConnector.uri;
+                    // display QR Code modal
+                    WalletConnectQRCodeModal.open(uri, () => {
+                        console.log('QR Code Modal closed');
+                    });
+                });
+            } else {
+                // disconnect
+                walletConnector.killSession();
+            }
+        }
+
+        // Subscribe to connection events: connect, session_update and disconnect
+        walletConnector.on('connect', function (error, payload) {
+            if (error) {
+                console.error(error);
+            } else {
+                // Close QR Code Modal
+                WalletConnectQRCodeModal.close();
+                // connection is made so we can display all the data
+                displayData();
+            }
+        });
+
+        walletConnector.on('session_update', function (error, payload) {
+            if (error) {
+                console.error(error);
+            } else if (walletConnector.connected) {
+                // data may be changed
+                displayData();
+            }
+
+        });
+
+        walletConnector.on('disconnect', function (error, payload) {
+            if (error) {
+                console.error(error);
+            } else {
+                // remove all the data
+                document.getElementById('connect').firstChild.data = 'Connect';
+                document.getElementById('data').hidden = true;
+                document.getElementById('assets').hidden = true;
+                document.getElementById('account').innerHTML = '';
+                document.getElementById('chainId').innerHTML = '';
+            }
+        });
+
+    });
+</script>
+</body>
+</html>
